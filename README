@@ -1,0 +1,210 @@
+horton - an e-mail directory daemon and whois server
+@(#)README	1.12 7/8/92
+
+DESCRIPTION
+    Horton automatically and silently creates a electronic mail address
+    directory by 'finger'ing each host in your domain preiodically,
+    and lets users look up e-mail addresses with the 'whois' command.
+
+    The command
+	whois -h horton_server search_key
+    where
+	horton_server is the name of the computer running Horton
+	search_key  is all or part of a person's name
+    lists all people whose name or username match the pattern.
+
+    On VMS systems with Multinet TCP/IP, type
+	whois /host=HOSTNAME search_key
+    On systems without whois, type
+	telnet HOSTNAME 43
+	search_key
+    A Macintosh MacTCP version of finger was written by Peter Lewis,
+    pe...@cujo.curtin.edu.au, and should be available at an FTP site near you.
+
+IMPLEMENTATION
+    Horton simply runs 'finger @host' on a predetermined set of
+    computers, and keep track of who logs in where.
+    It works with the finger services provided by NeXTs, Suns,
+    and even VMS systems running Multinet.
+
+    It also runs 'finger user' on all the users of the local
+    computer; this is meant to catch users who never log 
+    in but rather check their mail with Eudora via POPmail.
+    (POPmail has to be modified to update /var/adm/lastlog for
+    this to have any effect.)
+
+    A hacked version of finger which times out after ten seconds
+    is used to avoid locking up when probing unknown hosts.
+
+    monthly.sh is run manually during startup to determine which
+    hosts should go in hosts.poll, and monthly thereafter, e.g.
+    by placing the line
+	1 1 1 * * /bin/nice /etc/horton/monthly.sh podunk.edu /etc/horton >/tmp/horton_mlog 2>&1
+    in the pseudouser's crontab.
+    It takes two arguments: the domain name, and the working directory.
+    It first checks each host in the domain to see whether it supports 
+    finger; those that do, it checks with mconnect to see whether they
+    support SMTP; for each host X that passes the above tests, it sends
+    a mail message to itself via host X using RFC822 source routing.
+    Only hosts that successfully deliver the mail message are added to
+    hosts.poll.
+
+    hourly.sh is a c-shell script to be run periodically, e.g.
+    by placing the line
+	12 8-17 * * 1-5 /bin/nice /etc/horton/hourly.sh podunk.edu /etc/horton >/tmp/horton_h.log 2>&1
+    in the pseudouser's crontab.
+    It takes two arguments: the domain name, and the working directory.
+
+    in.whoisd is a server that accepts search patterns from
+    clients running the program 'whois', and runs egrep
+    on the database file.  It is invoked from /etc/inetd.conf, e.g.
+	whois	stream	tcp	nowait	nobody	/etc/horton/in.whoisd in.whoisd /etc/horton/hourly.out
+    It takes one argument: the data file to search.
+
+INPUT FILES
+    hosts.xlat must exist and must be nonempty.  
+    When you have Horton up and running, you will want to edit this
+    file to add one line for each machine which remote mounts /var/spool/mail
+    from another machine; the first word on the line is the client name,
+    the second word on the line is the server name.
+    Horton uses this info to report all users on the clients as if they
+    only ever logged in to their server; this reduces the confusion of
+    the user who is trying to decide which of the machines to send mail to.
+ 
+    For example, if sparky and rover mount /var/spool/mail from dog,
+    you should add the following lines to hosts.xlat:
+	sparky dog
+	rover dog
+
+    hosts.exclude must exist and must be nonempty.  Use this file
+    to exclude hosts that don't want to be disturbed in any way
+    by automatic fingering or mail-probing.  It can contain
+    hostnames or IP addresses.  These are matched with fgrep,
+    so partial names or addresses will act like wildcards.
+    Careful, or you may exclude more hosts than you intend.
+    The format is one pattern per line:
+	scratchy
+	128.149.77.
+	128.149.80.5
+
+OUTPUT FILES
+    hosts.poll lists the hosts to query with finger, one per line, e.g.
+	sparky
+	dog
+	rover
+    It is updated by monthly.sh, but you can add lines to it manually, too.
+
+    The revolving output data file is hourly.dat, which is in the format
+	user@host	full name	last date logged in
+    where the columns are separated by tabs.
+    It is both read and written by hourly.sh.
+
+    The same data is placed in hourly.out, but with tabs expanded to spaces.
+    It is written by hourly.sh, and read by in.whoisd.
+
+INSTALLATION
+    1. As root, create a pseudouser (e.g. horton) to run monthly.sh.
+       Copy dot.plan to the pseudouser's home directory as .plan.
+       Edit the .plan file to reflect your TELEPHONE_NUMBER, E-MAIL-ADR,
+       and the server's HOSTNAME.
+       (When anxious sysops try to figure out why their machine is
+       being finger'd and mail'd periodically by this strange user,
+       the .plan file will explain the situation to them, and
+       tell them whom to contact.)
+       If pseudouser is not horton, edit the .plan file to reflect the name.
+       Choose a working directory, perhaps /etc/horton or /home/horton/etc.
+       Pseudouser must own this directory and its contents.
+       Edit Makefile to set value of DIR to the working directory.
+       If your host is a POPmail host, you may wish to activate
+       the 'local users' loop in hourly.sh.
+
+    2. Compile the software with 'make', then 'make install', and 'make clean'.
+
+    3. Run monthly.sh to initialize hosts.poll.
+       Verify that hosts.poll has good hosts in it.
+
+    4. Run hourly.sh to initialize hourly.out.
+       Verify that hourly.out has good usernames and addresses in it.
+
+    5. As root, add the line
+	whois	stream	tcp	nowait	nobody	/etc/horton/in.whoisd in.whoisd /etc/horton/hourly.out
+    to /etc/inetd.conf as above, substituting your chosen directory for 
+    /etc/horton.
+       Cause it to take effect by sending inetd a kill -HUP.
+
+    6. Run whois -h localhost @ to verify that daemon is handling requests.
+
+    7. Add lines to invoke hourly.sh and monthly.sh from the pseudouser's 
+       crontab:
+	# ctontab -e horton
+	1 1 1 * * /bin/nice /etc/horton/monthly.sh podunk.edu /etc/horton >/tmp/horton_mlog 2>&1
+	12 8-17 * * 1-5 /bin/nice /etc/horton/hourly.sh podunk.edu /etc/horton >/tmp/horton_h.log 2>&1
+       substituting your net's domain name for podunk.edu, and your chosen 
+       directory for /etc/horton.
+
+    8. If any sysops complain about Horton's incessant fingering, and wish
+       to be excluded from the directory, add their name or internet
+       address to hosts.exclude, and delete them from hosts.poll.
+
+    9. If some hosts are e-mail clients of another host, and you wish to 
+       reduce the ambiguity of the directory, add clientname-servername
+       pairs to hosts.xlat.
+
+    10. (optional) I suggest you create an alias 'horton' in your network's 
+       DNS host tables for the server machine.  This lets you move the whois 
+       server to a different machine without making people relearn the 
+       server's address.
+
+    11. (optional) Set the default server for whois queries to be 'horton'.
+       You can do this by renaming the original whois to be whois.orig,
+       installing the shell script
+	#!/bin/sh
+	if [ _$1 = _ ];
+	then
+	    whois.orig -h horton $*
+	else
+	    whois.orig $*
+	fi
+       in place of the original whois on all clients.
+
+    12. (optional) 
+	Send e-mail to mhp...@athena.mit.edu announcing your whois server.
+	Matt H. Power of MIT <mhp...@athena.mit.edu> has compiled and
+	maintains an extensive list of sites that run "whois" servers.  The
+	file can be retrieved via anonymous ftp from
+	/pub/whois/whois-servers.list on sipb.mit.edu [18.70.0.224].
+
+
+SECURITY
+    You may wish to restrict whois server access to local hosts.  This
+    can be done with log_tcp, a great TCP/IP access control package
+    available from many ftp hosts.
+
+    It may be wise to make your local computers fairly secure before
+    letting the outside world see your whois database.  Installing
+    log_tcp to restrict outside login access, installing npasswd to
+    prevent users from picking lame passwords, running COPS periodically
+    to flush out random security holes, and keeping up-to-date on
+    security patches from your OS vendor would go a long way towards
+    preventing breakins at your site.
+
+BUGS
+    Entries are never purged from hourly.out.
+    Works with the finger output I've seen, but might not work
+    with other finger daemons.
+    Probably relies on something found only on Suns.
+
+    Relies on domain name always being the same case!  This can
+    cause the output file to contain entries that are not stripped
+    of the domain name.
+
+    Uses sendmail directly to send its mail probes; should use Mail or mailx.
+
+    hourly.sh doesn't understand the finger output of hosts running Charon.
+    monthly.sh will ignore hosts that use an MX record or refuse to deliver
+    non-local mail but support finger, such as Charon.
+
+    Poorly documented.
+
+AUTHOR
+    Dan Kegel (da...@blacks.jpl.nasa.gov)

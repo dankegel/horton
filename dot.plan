@@ -1,0 +1,28 @@
+Horton is the keeper of the whois database on HOSTNAME.
+Whois is an e-mail directory service.
+
+To look up somebody's e-mail address:
+On most Unix systems, type
+	whois -h HOSTNAME search_key
+On Unix systems without whois, type
+	telnet HOSTNAME 43			# or telnet HOSTNAME whois
+	search_key
+On VMS systems with Multinet TCP/IP, type
+	whois /host=HOSTNAME search_key
+A Macintosh MacTCP version of finger was written by Peter Lewis,
+pe...@cujo.curtin.edu.au, and should be available at an FTP site near you.
+
+The search key can be a whole name, or just a fragment of a name.
+If there are no matches, nothing will be printed; try a shorter
+fragment.
+
+When Horton wants to update its idea of what hosts should be 
+polled to generate the whois database, it runs a probe script 
+which fingers and sends mail thru each site; the sites that 
+respond to both requests are placed in the list of sites to poll.
+
+To prevent Horton from probing your machine in any way, or to
+report any problems, send a message to E-MAIL-ADR, or call TELEPHONE_NUMBER.  
+Do not send mail to Horton, it will be discarded.
+
+@(#)dot.plan	1.3 7/8/92

@@ -1,0 +1,5 @@
+# Translation table from hostname to mailhost name
+# i.e. to send mail to somebody logged in at host,
+# send it to mailhost.
+#host	mailhost
+dummy_host dummy_mailhost
